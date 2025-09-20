@@ -2,11 +2,14 @@ from typing import List, Dict
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import time
+import random
+import logging
 from scrapers.scraper_base import ProductScraper
 
 class AmazonScraper(ProductScraper):
-    def __init__(self, domain: str = "www.amazon.in"):
+    def __init__(self, domain: str = "www.amazon.in", delay_range=None):
         self.domain = domain
+        self.delay_range = delay_range if delay_range else (2, 4)
 
     def parse_search_page(self, html: str) -> List[Dict]:
         import logging
@@ -91,12 +94,16 @@ class AmazonScraper(ProductScraper):
             if fetch_details:
                 for p in products:
                     if p.get("product_url"):
-                        time.sleep(2)
+                        delay = random.uniform(self.delay_range[0], self.delay_range[1])
+                        logging.info(f"[AmazonScraper] Sleeping for {delay:.2f} seconds before detail fetch (delay_range={self.delay_range})")
+                        time.sleep(delay)
                         detail_html = self.fetch_url(p["product_url"], session)
                         if detail_html:
                             details = self.parse_product_detail(detail_html)
                             p.update(details)
             all_products.extend(products)
-            time.sleep(2)
+            delay = random.uniform(self.delay_range[0], self.delay_range[1])
+            logging.info(f"[AmazonScraper] Sleeping for {delay:.2f} seconds after page fetch (delay_range={self.delay_range})")
+            time.sleep(delay)
         logging.info(f"[AmazonScraper] Total products scraped: {len(all_products)}")
         return all_products
