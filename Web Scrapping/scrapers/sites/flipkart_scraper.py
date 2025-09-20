@@ -2,11 +2,15 @@ from typing import List, Dict
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import time
+import random
+import logging
 from scrapers.scraper_base import ProductScraper
 
 class FlipkartScraper(ProductScraper):
-    def __init__(self, domain: str = "www.flipkart.com"):
+    def __init__(self, domain: str = "www.flipkart.com", delay_range=None):
         self.domain = domain
+        # delay_range should be a tuple/list like (min, max)
+        self.delay_range = delay_range if delay_range else (2, 4)
 
     def parse_search_page(self, html: str) -> List[Dict]:
         import logging
@@ -39,7 +43,6 @@ class FlipkartScraper(ProductScraper):
 
     def search_products(self, query: str, pages: int, fetch_details: bool = True) -> List[Dict]:
         import requests
-        import logging
         from fake_useragent import UserAgent
         session = requests.Session()
         ua = UserAgent()
@@ -73,6 +76,9 @@ class FlipkartScraper(ProductScraper):
             products = self.parse_search_page(html)
             logging.info(f"[FlipkartScraper] Found {len(products)} products on page {page}")
             all_products.extend(products)
-            time.sleep(2)
+            # Use modular delay from config
+            delay = random.uniform(self.delay_range[0], self.delay_range[1])
+            logging.info(f"[FlipkartScraper] Sleeping for {delay:.2f} seconds (delay_range={self.delay_range})")
+            time.sleep(delay)
         logging.info(f"[FlipkartScraper] Total products scraped: {len(all_products)}")
         return all_products

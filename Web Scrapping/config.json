@@ -1,18 +1,30 @@
 {
   "sites": [
     {
+      "name": "myntra",
+      "url": "www.myntra.com",
+      "pages": 2,
+      "topic": "myntra_products",
+      "fetch_details": true,
+      "delay_range": [2, 4]
+    }
+  ],
+  "disabled_sites": [
+    {
       "name": "amazon",
       "url": "www.amazon.in",
       "pages": 2,
       "topic": "amazon_products",
-      "fetch_details": true
+      "fetch_details": true,
+      "delay_range": [2, 4]
     },
     {
       "name": "flipkart",
       "url": "www.flipkart.com",
       "pages": 2,
       "topic": "flipkart_products",
-      "fetch_details": true
+      "fetch_details": true,
+      "delay_range": [7, 15]
     }
   ],
   "kafka": {
