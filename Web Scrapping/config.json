@@ -1,0 +1,21 @@
+{
+  "sites": [
+    {
+      "name": "amazon",
+      "url": "www.amazon.in",
+      "pages": 2,
+      "topic": "amazon_products",
+      "fetch_details": true
+    },
+    {
+      "name": "flipkart",
+      "url": "www.flipkart.com",
+      "pages": 2,
+      "topic": "flipkart_products",
+      "fetch_details": true
+    }
+  ],
+  "kafka": {
+    "bootstrap_servers": "192.168.0.102:29092"
+  }
+}
