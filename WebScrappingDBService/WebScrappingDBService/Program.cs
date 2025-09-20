@@ -6,69 +6,73 @@ using Confluent.Kafka;
 using InfluxDB.Client;
 using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
-using WebScrappingDBService; // Add this for PriceProcessor and PriceEvent
+using WebScrappingDBService.Interfaces;
+using WebScrappingDBService.Models;
+using WebScrappingDBService.Services;
 
-class Program
+namespace WebScrappingDBService
 {
-    static async Task Main(string[] args)
+
+    public class Program
     {
-        Console.WriteLine("📈 Starting Price Processor Service...");
-
-        // Load configuration
-        var config = new ConfigurationBuilder()
-            .SetBasePath(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..")))
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var kafkaConfig = config.GetSection("Kafka");
-        var redisConfig = config.GetSection("Redis");
-        var influxConfig = config.GetSection("InfluxDB");
-
-        // Redis
-        var redis = await ConnectionMultiplexer.ConnectAsync(redisConfig["ConnectionString"]);
-        var db = redis.GetDatabase();
-
-        // InfluxDB
-        using var influxClient = new InfluxDBClient(influxConfig["Url"], influxConfig["Token"]);
-
-        var processor = new PriceProcessor(db, influxClient, influxConfig["Org"], influxConfig["Bucket"]);
-
-        // Kafka Consumer
-        var consumerConfig = new ConsumerConfig
+        public static async Task Main(string[] args)
         {
-            BootstrapServers = kafkaConfig["BootstrapServers"],
-            GroupId = kafkaConfig["GroupId"],
-            AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false // Manual commit
-        };
+            Console.WriteLine("Starting Price Processor Service (SOLID)...");
 
-        using var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build();
-        consumer.Subscribe(kafkaConfig["Topic"]);
+            var config = new ConfigurationBuilder()
+                .SetBasePath(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..")))
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
 
-        Console.WriteLine("✅ Subscribed to Kafka topic: " + kafkaConfig["Topic"]);
+            var kafkaConfig = config.GetSection("Kafka");
+            var redisConfig = config.GetSection("Redis");
+            var influxConfig = config.GetSection("InfluxDB");
 
-        try
-        {
-            while (true)
+            // Null checks for config values
+            string? redisConnStr = redisConfig["ConnectionString"];
+            string? influxUrl = influxConfig["Url"];
+            string? influxToken = influxConfig["Token"];
+            string? influxOrg = influxConfig["Org"];
+            string? influxBucket = influxConfig["Bucket"];
+            string? influxMeasurement = influxConfig["Measurement"];
+            string? kafkaBootstrap = kafkaConfig["BootstrapServers"];
+            string? kafkaGroupId = kafkaConfig["GroupId"];
+            string? kafkaTopic = kafkaConfig["Topic"];
+
+            if (string.IsNullOrEmpty(redisConnStr) || string.IsNullOrEmpty(influxUrl) || string.IsNullOrEmpty(influxToken) || string.IsNullOrEmpty(influxOrg) || string.IsNullOrEmpty(influxBucket) || string.IsNullOrEmpty(influxMeasurement) || string.IsNullOrEmpty(kafkaBootstrap) || string.IsNullOrEmpty(kafkaGroupId) || string.IsNullOrEmpty(kafkaTopic))
             {
-                var cr = consumer.Consume();
-                var message = cr.Message.Value;
-
-                var priceEvent = JsonSerializer.Deserialize<PriceEvent>(message);
-                if (priceEvent == null) continue;
-
-                await processor.ProcessPriceAsync(priceEvent);
-                consumer.Commit(cr); // Commit offset after successful processing
+                Console.WriteLine("Missing configuration values. Please check appsettings.json.");
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Consumer Error: {ex.Message}");
-        }
-        finally
-        {
-            consumer.Close();
+
+            var redis = await ConnectionMultiplexer.ConnectAsync(redisConnStr);
+            var db = redis.GetDatabase();
+            var influxClient = new InfluxDBClient(influxUrl, influxToken);
+            IPriceCache priceCache = new RedisPriceCache(db);
+            IPriceDatabase priceDb = new InfluxPriceDatabase(influxClient, influxOrg, influxBucket, influxMeasurement);
+            IPriceProcessor processor = new PriceProcessor(priceCache, priceDb);
+
+            var consumerConfig = new ConsumerConfig
+            {
+                BootstrapServers = kafkaBootstrap,
+                GroupId = kafkaGroupId,
+                AutoOffsetReset = AutoOffsetReset.Earliest,
+                EnableAutoCommit = false
+            };
+
+            IKafkaConsumer kafkaConsumer = new KafkaConsumer(consumerConfig);
+            kafkaConsumer.Subscribe(kafkaTopic);
+            Console.WriteLine($"Subscribed to Kafka topic: {kafkaTopic}");
+
+            kafkaConsumer.ProcessMessages(async (message) => {
+                if (string.IsNullOrEmpty(message)) return false;
+                var priceEvent = JsonSerializer.Deserialize<PriceEvent>(message);
+                if (priceEvent == null) return false;
+                await processor.ProcessPriceAsync(priceEvent);
+                return true;
+            });
+            influxClient.Dispose();
         }
     }
 }
