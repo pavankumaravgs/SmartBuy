@@ -1,0 +1,47 @@
+# .gitignore for .NET/C# projects
+# Build results
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code settings
+.vscode/
+
+# Docker artifacts
+*.pid
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Others
+*.swp
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# Python
+__pycache__/
+.venv/
+venv/
+*.pyc
+*.pyo
+*.pyd
+.env
+.envrc
+.eggs/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+.tox/
